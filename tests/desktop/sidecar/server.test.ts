@@ -119,6 +119,23 @@ describe("createBridgeServer", () => {
     expect(outcome).not.toBe("open")
   })
 
+  it("accepts a connection whose Origin is the Tauri dev server", async () => {
+    const { server } = start()
+    const response = await fetch(`http://127.0.0.1:${server.port}`, {
+      headers: { origin: "http://localhost:5173", "sec-websocket-protocol": `otis.${TOKEN}` },
+    })
+    expect(await response.text()).not.toBe("forbidden origin")
+  })
+
+  it("rejects a connection from an arbitrary third-party origin", async () => {
+    const { server } = start()
+    const response = await fetch(`http://127.0.0.1:${server.port}`, {
+      headers: { origin: "https://evil.example", "sec-websocket-protocol": `otis.${TOKEN}` },
+    })
+    expect(response.status).toBe(401)
+    expect(await response.text()).toBe("forbidden origin")
+  })
+
   it("rejects a second concurrent client while keeping the first", async () => {
     const { server, runtime } = start()
     const first = connect(server.port)

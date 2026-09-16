@@ -49,7 +49,7 @@ async function bootstrap() {
       void setupTray(api)
       void revealWindow()
     } catch (error) {
-      console.error("Failed to connect to the desktop bridge:", error)
+      console.error(`Failed to connect to the desktop bridge: ${error instanceof Error ? error.message : error}`)
       root.render(<BridgeMissing />)
       void revealWindow()
     }
@@ -104,11 +104,12 @@ const WINDOW_BACKGROUND: [number, number, number] = [0x1a, 0x1a, 0x1a]
 /**
  * The window is created with `visible: false` (see tauri.conf.json) so the user never sees a blank/white
  * webview before React paints. Sets the native background on both the window and the webview, then shows.
- * Waits two animation frames past mount() so the commit has actually painted; createRoot's initial render
- * isn't guaranteed synchronous.
+ * Deliberately NOT requestAnimationFrame-gated: browsers throttle or fully suspend rAF for a non-visible
+ * document, and this window starts hidden — waiting on rAF here can deadlock the reveal forever. A macrotask
+ * tick is enough to let createRoot's initial commit flush first.
  */
 async function revealWindow() {
-  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  await new Promise((resolve) => setTimeout(resolve, 0))
   try {
     const [{ getCurrentWindow }, { getCurrentWebview }] = await Promise.all([
       import("@tauri-apps/api/window"),

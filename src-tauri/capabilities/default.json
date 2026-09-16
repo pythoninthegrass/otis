@@ -20,6 +20,8 @@
     "opener:default",
     "updater:default",
     "process:default",
+    "mcp-bridge:default",
+    "websocket:default",
     {
       "identifier": "shell:allow-execute",
       "allow": [{ "name": "binaries/otis-runtime", "sidecar": true }]

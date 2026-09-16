@@ -1,4 +1,3 @@
-import { join } from "node:path"
 import { Image } from "@tauri-apps/api/image"
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu"
 import { TrayIcon } from "@tauri-apps/api/tray"
@@ -165,7 +164,9 @@ function isMacOS(): boolean {
 }
 
 async function loadTrayIcon(dir: string, key: TrayIconKey): Promise<Image | undefined> {
-  const image = await Image.fromPath(join(dir, TRAY_ICON_FILES[key].retina)).catch(() => undefined)
+  // Not a filesystem path from Node's perspective — this runs in the webview, so node:path can't be used
+  // (Vite externalizes Node builtins for browser code); a plain forward-slash join is correct here.
+  const image = await Image.fromPath(`${dir}/${TRAY_ICON_FILES[key].retina}`).catch(() => undefined)
   return image
 }
 

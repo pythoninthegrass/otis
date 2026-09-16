@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { open } from "@tauri-apps/plugin-dialog"
 import { openUrl } from "@tauri-apps/plugin-opener"
+import TauriWebSocket from "@tauri-apps/plugin-websocket"
 import {
   DESKTOP_CHANNELS,
   type DesktopApi,
@@ -39,8 +40,14 @@ export async function createSidecarApi(): Promise<DesktopApi> {
   const pending = new Map<number, PendingCall>()
   const eventListeners = new Set<(event: DesktopEvent) => void>()
 
-  socket.addEventListener("message", (message) => {
-    const frame = JSON.parse(message.data as string) as ResponseFrame | EventFrame
+  socket.addListener((message) => {
+    if (message.type === "Close") {
+      for (const call of pending.values()) call.reject(new Error("The desktop bridge connection closed."))
+      pending.clear()
+      return
+    }
+    if (message.type !== "Text") return
+    const frame = JSON.parse(message.data) as ResponseFrame | EventFrame
     if (isEventFrame(frame)) {
       const [event] = frame.params
       for (const listener of eventListeners) listener(event)
@@ -52,17 +59,16 @@ export async function createSidecarApi(): Promise<DesktopApi> {
     if (frame.ok) call.resolve(frame.value)
     else call.reject(new Error(frame.error))
   })
-  socket.addEventListener("close", () => {
-    for (const call of pending.values()) call.reject(new Error("The desktop bridge connection closed."))
-    pending.clear()
-  })
 
   const send = <T>(method: string, params: unknown[]): Promise<T> =>
     new Promise((resolve, reject) => {
       const id = nextId++
       pending.set(id, { resolve: resolve as (value: unknown) => void, reject })
       const frame: RequestFrame = { id, method, params }
-      socket.send(JSON.stringify(frame))
+      void socket.send(JSON.stringify(frame)).catch((error) => {
+        pending.delete(id)
+        reject(error)
+      })
     })
 
   const updater = startAutoUpdates({ isPackaged: !import.meta.env.DEV, onState: () => {} })
@@ -112,19 +118,16 @@ export async function createSidecarApi(): Promise<DesktopApi> {
   return api
 }
 
-/** Opens the sidecar WebSocket, authenticating via the `otis.<token>` subprotocol; resolves only once open. */
-function connect(port: number, token: string): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const socket = new WebSocket(`ws://127.0.0.1:${port}`, `otis.${token}`)
-    const onOpen = () => {
-      socket.removeEventListener("error", onFailure)
-      socket.removeEventListener("close", onFailure)
-      resolve(socket)
-    }
-    const onFailure = () => reject(new Error("Could not connect to the desktop bridge."))
-    socket.addEventListener("open", onOpen, { once: true })
-    socket.addEventListener("error", onFailure, { once: true })
-    socket.addEventListener("close", onFailure, { once: true })
+/**
+ * Opens the sidecar WebSocket via the Rust-backed plugin-websocket client, not the browser's native WebSocket:
+ * WKWebView applies mixed-content/ATS rules to a native WebSocket exactly as a real browser would, and rejects
+ * a loopback ws:// connection from the dev page with "The operation is insecure." — tauri-plugin-websocket runs
+ * the actual socket in Rust (no WKWebView network policy involved) and streams frames to JS over IPC instead.
+ * Authenticates via the `otis.<token>` value in the Sec-WebSocket-Protocol header.
+ */
+function connect(port: number, token: string): Promise<TauriWebSocket> {
+  return TauriWebSocket.connect(`ws://127.0.0.1:${port}`, {
+    headers: { "Sec-WebSocket-Protocol": `otis.${token}` },
   })
 }
 

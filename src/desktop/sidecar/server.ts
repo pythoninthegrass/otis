@@ -63,6 +63,24 @@ type ClientData = Record<string, never>
  * connection. Not exported by any other module under src/ — this is the one place Bun.serve is allowed, since
  * it only ever runs compiled by Bun.
  */
+/**
+ * The renderer's own Origin varies by how the webview loaded it: Tauri's dev server (`http://localhost:<port>`)
+ * in `tauri dev`, and Tauri's internal scheme (typically no Origin header, or `tauri://localhost` /
+ * `https://tauri.localhost` depending on platform) once bundled. The bearer token is the real authentication —
+ * this only needs to keep out a page loaded from an unrelated origin, so it allows the loopback/Tauri hostname
+ * family rather than one hardcoded devUrl string.
+ */
+const ALLOWED_ORIGIN_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]", "tauri.localhost"])
+
+export function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin || origin === "null") return true
+  try {
+    return ALLOWED_ORIGIN_HOSTNAMES.has(new URL(origin).hostname)
+  } catch {
+    return false
+  }
+}
+
 export function createBridgeServer(options: CreateBridgeServerOptions): BridgeServer {
   const { runtime, token, onClientConnected, onClientDisconnected } = options
   const expectedProtocol = `otis.${token}`
@@ -73,7 +91,7 @@ export function createBridgeServer(options: CreateBridgeServerOptions): BridgeSe
     port: 0,
     fetch(req, srv) {
       const origin = req.headers.get("origin")
-      if (origin && origin !== "null") return new Response("forbidden origin", { status: 401 })
+      if (!isAllowedOrigin(origin)) return new Response("forbidden origin", { status: 401 })
       const protocolHeader = req.headers.get("sec-websocket-protocol")
       if (protocolHeader !== expectedProtocol) return new Response("unauthorized", { status: 401 })
       const upgraded = srv.upgrade(req, { data: {} })

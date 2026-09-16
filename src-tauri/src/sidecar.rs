@@ -110,11 +110,13 @@ impl SidecarState {
     }
 }
 
-/// Deletes any stale `bridge.json`, spawns the sidecar, and manages `SidecarState`/`RuntimeDir` on
-/// `app`. Mirrors `~/git/mt/crates/mt-tauri/src/sidecar.rs`'s stale-file and event-pump shape;
-/// every failure path here is logged rather than propagated, since a missing sidecar binary must
-/// not prevent the rest of the app (and its window) from starting.
-pub fn spawn<R: Runtime>(app: &tauri::App<R>, runtime_dir: &Path) {
+/// Deletes any stale `bridge.json` left by a hard-killed previous run. Called from `run()` before
+/// `Builder::build()` — not from inside `setup()` — so it is guaranteed to happen before the window can
+/// possibly load and invoke `bridge_endpoint`. `setup()` is documented to run before window content starts
+/// loading, but that ordering isn't a contract worth betting a race on: `bridge_endpoint`'s poll loop
+/// returns on the first bridge.json it can parse, stale or not, so a webview that got there first would
+/// silently hand the renderer a dead port and token.
+pub fn delete_stale_bridge_file(runtime_dir: &Path) {
     let bridge_file = runtime_dir.join(BRIDGE_FILE_NAME);
     if let Err(e) = std::fs::remove_file(&bridge_file)
         && e.kind() != std::io::ErrorKind::NotFound
@@ -124,7 +126,13 @@ pub fn spawn<R: Runtime>(app: &tauri::App<R>, runtime_dir: &Path) {
             bridge_file.display()
         );
     }
+}
 
+/// Spawns the sidecar and manages `SidecarState`/`RuntimeDir` on `app`. Mirrors
+/// `~/git/mt/crates/mt-tauri/src/sidecar.rs`'s spawn and event-pump shape; every failure path here is
+/// logged rather than propagated, since a missing sidecar binary must not prevent the rest of the app
+/// (and its window) from starting. Callers must call `delete_stale_bridge_file` first.
+pub fn spawn<R: Runtime>(app: &tauri::App<R>, runtime_dir: &Path) {
     app.manage(RuntimeDir(runtime_dir.to_path_buf()));
 
     let command = match app.shell().sidecar(SIDECAR_NAME) {

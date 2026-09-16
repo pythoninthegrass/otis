@@ -34,8 +34,10 @@ export function createShutdownController(options: ShutdownControllerOptions): Sh
   return {
     onDisconnect() {
       if (watchdog || shuttingDown) return
+      console.error(`[sidecar] client disconnected, watchdog armed for ${watchdogMs}ms`)
       watchdog = setTimeout(() => {
         watchdog = undefined
+        console.error("[sidecar] watchdog elapsed with no reconnect, shutting down")
         void runShutdownOnce().then(() => exit())
       }, watchdogMs)
     },

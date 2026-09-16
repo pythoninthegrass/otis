@@ -51,12 +51,16 @@ async function main() {
   const bridgePath = join(runtimeDirFromArgs() ?? sidecarRuntimeDirectory(), "bridge.json")
   await writeBridgeFile(bridgePath, { port: server.port, token })
 
-  const shutdownAndExit = async () => {
+  console.error(`[sidecar] listening on 127.0.0.1:${server.port}, bridge file at ${bridgePath}`)
+
+  const shutdownAndExit = async (signal: string) => {
+    console.error(`[sidecar] received ${signal}, shutting down`)
     await shutdownController.requestShutdown()
     process.exit(0)
   }
-  process.on("SIGTERM", () => void shutdownAndExit())
-  process.on("SIGINT", () => void shutdownAndExit())
+  process.on("SIGTERM", () => void shutdownAndExit("SIGTERM"))
+  process.on("SIGINT", () => void shutdownAndExit("SIGINT"))
+  process.on("beforeExit", (code) => console.error(`[sidecar] beforeExit fired with code ${code}`))
 }
 
 void main()
