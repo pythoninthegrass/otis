@@ -52,3 +52,6 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 .zed/
+
+# Local Claude Code instructions (not checked in)
+CLAUDE.md
