@@ -24,10 +24,10 @@ const hardware: HardwareProbe = {
 }
 
 const pinnedArchiveURL =
-  "https://github.com/ggml-org/llama.cpp/releases/download/b10666/llama-b10666-bin-macos-arm64.tar.gz"
+  "https://github.com/ggml-org/llama.cpp/releases/download/b10920/llama-b10920-bin-macos-arm64.tar.gz"
 const archiveBody = Buffer.from("archive")
 const fakeRuntimeAsset: NonNullable<LlamaCppRuntimeOptions["runtimeAsset"]> = () => ({
-  name: "llama-b10666-bin-macos-arm64.tar.gz",
+  name: "llama-b10920-bin-macos-arm64.tar.gz",
   url: pinnedArchiveURL,
   size: archiveBody.byteLength,
   sha256: createHash("sha256").update(archiveBody).digest("hex"),
@@ -79,7 +79,7 @@ describe("llama.cpp runtime", () => {
     await runtime.ensureServing(model, fit, hardware)
 
     const binary = commands[0]
-    expect(binary).toBe(join(directory, "bin", "b10666", "llama-server"))
+    expect(binary).toBe(join(directory, "bin", "b10920", "llama-server"))
     expect(await readFile(join(dirname(binary as string), "libllama.dylib"), "utf8")).toBe("llama library")
     await expect(readFile(join(dirname(binary as string), ".otis-runtime.json"), "utf8")).resolves.toContain(
       `"artifactSha256":"${fakeRuntimeAsset(hardware).sha256}"`,
@@ -94,7 +94,7 @@ describe("llama.cpp runtime", () => {
     const directory = await tempDir()
     await cacheWeights(model, directory)
     await installFakeBinary(directory, "b10667")
-    const pinned = await installFakeBinary(directory, "b10666")
+    const pinned = await installFakeBinary(directory, "b10920")
     const urls: string[] = []
     let command = ""
     const runtime = new LlamaCppRuntime({
@@ -412,7 +412,7 @@ describe("llama.cpp runtime", () => {
     const fit = fitLocalModel(model, hardware)
     const directory = await tempDir()
     await cacheWeights(model, directory)
-    const binary = await installFakeBinary(directory, "b10666")
+    const binary = await installFakeBinary(directory, "b10920")
     await writeFile(
       join(dirname(binary), ".otis-runtime.json"),
       JSON.stringify({
@@ -459,7 +459,7 @@ describe("llama.cpp runtime", () => {
     const fit = fitLocalModel(model, hardware)
     const directory = await tempDir()
     await cacheWeights(model, directory)
-    const binary = await installLoneBinary(directory, "b10666")
+    const binary = await installLoneBinary(directory, "b10920")
     const urls: string[] = []
     const runtime = new LlamaCppRuntime({
       env: {},

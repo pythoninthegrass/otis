@@ -1,31 +1,31 @@
-export const LLAMA_CPP_RELEASE_TAG = "b10666"
+export const LLAMA_CPP_RELEASE_TAG = "b10920"
 
 const LLAMA_CPP_RELEASE_BASE_URL = `https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_CPP_RELEASE_TAG}`
 
 const LLAMA_CPP_ASSETS = {
-  "llama-b10666-bin-macos-arm64.tar.gz": {
-    size: 11_022_594,
-    sha256: "f2b5d7b445cfcdab2abe53e0e6e697790094fb902ef2bdaafd23c813bb297cbb",
+  "llama-b10920-bin-macos-arm64.tar.gz": {
+    size: 11_153_577,
+    sha256: "a05ab1b397698b7efc19bbfc75523f7a4cfc6c34d1757c464797917a8fbc2ce5",
   },
-  "llama-b10666-bin-macos-x64.tar.gz": {
-    size: 11_088_606,
-    sha256: "5af9cd7fbcc226dbdba8d24e66e07b732903fc58eff0e38d829f04264f8d4601",
+  "llama-b10920-bin-macos-x64.tar.gz": {
+    size: 11_199_734,
+    sha256: "dba733f9d21c4cd6e48b96fca56c73b61838c6515bab498d79f32f9056b29481",
   },
-  "llama-b10666-bin-ubuntu-arm64.tar.gz": {
-    size: 13_124_929,
-    sha256: "80e7e23689b9a8d541b45270a202db4f72de99ea52eabc4910373d8cc96e98fe",
+  "llama-b10920-bin-ubuntu-arm64.tar.gz": {
+    size: 13_440_604,
+    sha256: "b584f40001ead185a981a49d1a6d266baded6a5e00c6c5400963e81f2b230b9b",
   },
-  "llama-b10666-bin-ubuntu-vulkan-arm64.tar.gz": {
-    size: 26_878_255,
-    sha256: "7293e6a49668e89b1d846b93151f3323bf29d99a73933a44264da0ac3cd5938f",
+  "llama-b10920-bin-ubuntu-vulkan-arm64.tar.gz": {
+    size: 24_201_486,
+    sha256: "e91f9dfd15b8577523e9da1e928f73fb8445b3ad7ca4bdb702a40996382ad5a1",
   },
-  "llama-b10666-bin-ubuntu-vulkan-x64.tar.gz": {
-    size: 33_018_827,
-    sha256: "50fe0c5ffe5d28a8b7c27b083e6f159592eb6d9554c234c434dac43f7bb42588",
+  "llama-b10920-bin-ubuntu-vulkan-x64.tar.gz": {
+    size: 30_156_764,
+    sha256: "96dda76d3c1ce5916879f4786e3130d4e1a1e1e00ca829782ad8931e3d5c3a57",
   },
-  "llama-b10666-bin-ubuntu-x64.tar.gz": {
-    size: 16_378_465,
-    sha256: "a3c75af6f70ca504dc2712263f51099d4610cc00d59331066fc2335711f1993e",
+  "llama-b10920-bin-ubuntu-x64.tar.gz": {
+    size: 16_813_896,
+    sha256: "701e191422c33bf790fc60640fa36360f1eb40e755a7bda7fd09312340866bec",
   },
 } as const
 
