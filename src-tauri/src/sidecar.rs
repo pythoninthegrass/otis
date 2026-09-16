@@ -2,18 +2,21 @@
 //!
 //! ## Division of responsibility for shutdown
 //!
-//! The sidecar (owned by the TypeScript side, `src/desktop/sidecar/`) is the primary graceful
-//! shutdown path: the renderer calls a `shutdown` RPC over the bridge WebSocket from
-//! `beforeunload`, and a sidecar-side watchdog runs `Application.shutdown()` on an unexpected
-//! disconnect. Both paths let `Application.shutdown()` finish before the process exits, which
-//! matters because it is responsible for not orphaning `llama-server` children.
+//! The sidecar (owned by the TypeScript side, `src/desktop/sidecar/`) owns the graceful shutdown
+//! path: it catches `SIGTERM`/`SIGINT` and also runs a disconnect watchdog that calls
+//! `Application.shutdown()` if the bridge WebSocket drops and doesn't reconnect. Either path lets
+//! `Application.shutdown()` finish before the process exits, which matters because it is
+//! responsible for not orphaning `llama-server` children.
 //!
-//! Rust has no cheap way to speak the same WebSocket protocol just to send one more shutdown
-//! signal — `tauri_plugin_shell::process::CommandChild` exposes only `kill()` (a hard kill,
-//! `SIGKILL` on Unix) and `write()`/`pid()`, nothing resembling `SIGTERM`. So `shutdown_gracefully`
-//! below is a safety net, not a second graceful path: it waits for the child to exit on its own
-//! (which it should already be doing via the RPC/watchdog by the time `RunEvent::Exit` fires) and
-//! only calls `kill()` if the sidecar is still alive after a timeout.
+//! `RunEvent::Exit` gives no guarantee the watchdog has already fired or even armed by the time it
+//! runs — the webview's WebSocket may not have disconnected yet, and there's no renderer-side
+//! `beforeunload` hook forcing it earlier. So `shutdown_gracefully` below sends the sidecar a real
+//! `SIGTERM` itself (via the system `kill` command — `tauri_plugin_shell::process::CommandChild`
+//! only exposes a hard `kill()`, `SIGKILL` on Unix, plus `write()`/`pid()`) to trigger its existing
+//! handler directly, then waits up to `SHUTDOWN_GRACE_PERIOD` for it to exit on its own, and only
+//! falls back to the hard `kill()` if it's still alive after that — SIGKILL can't be caught, so
+//! that fallback is a last resort: it bypasses the sidecar's SIGTERM handler entirely and orphans
+//! `llama-server` if it ever fires.
 //!
 //! ## Stale runtime file hazard
 //!
@@ -70,7 +73,7 @@ pub fn resolve_runtime_dir() -> PathBuf {
 const BRIDGE_FILE_NAME: &str = "bridge.json";
 const BRIDGE_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const BRIDGE_POLL_TIMEOUT: Duration = Duration::from_secs(5);
-const SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(3);
+const SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(5);
 
 /// What the renderer needs to open the bridge WebSocket. Field names match the sidecar's
 /// `bridge.json` and the TS-side `bridge.ts` contract exactly: `{port, token}`.
@@ -214,9 +217,9 @@ pub async fn bridge_endpoint(runtime_dir: State<'_, RuntimeDir>) -> Result<Bridg
     }
 }
 
-/// The `RunEvent::Exit` safety net described in the module doc: wait up to
-/// `SHUTDOWN_GRACE_PERIOD` for the sidecar to exit on its own (its own RPC/watchdog path should
-/// already be doing this), then hard-kill if it hasn't.
+/// The `RunEvent::Exit` handler described in the module doc: send the sidecar a real `SIGTERM` to
+/// trigger its own graceful shutdown directly, wait up to `SHUTDOWN_GRACE_PERIOD` for it to exit,
+/// then hard-kill only as a last resort.
 pub async fn shutdown_gracefully<R: Runtime>(app_handle: &tauri::AppHandle<R>) {
     let Some(state) = app_handle.try_state::<SidecarState>() else {
         return;
@@ -225,6 +228,10 @@ pub async fn shutdown_gracefully<R: Runtime>(app_handle: &tauri::AppHandle<R>) {
     let mut terminated_rx = state.terminated_rx.clone();
     if *terminated_rx.borrow() {
         return;
+    }
+
+    if let Some(pid) = state.child.lock().await.as_ref().map(CommandChild::pid) {
+        send_sigterm(pid);
     }
 
     let waited_for_exit = tokio::time::timeout(SHUTDOWN_GRACE_PERIOD, async {
@@ -253,3 +260,18 @@ pub async fn shutdown_gracefully<R: Runtime>(app_handle: &tauri::AppHandle<R>) {
         eprintln!("[sidecar] failed to kill on exit: {e}");
     }
 }
+
+/// Delivers a real `SIGTERM` to `pid`, since `CommandChild::kill()` only exposes `SIGKILL`. Shells
+/// out to the system `kill` rather than adding a signal-handling crate for this one call.
+#[cfg(unix)]
+fn send_sigterm(pid: u32) {
+    if let Err(e) = std::process::Command::new("kill")
+        .args(["-TERM", &pid.to_string()])
+        .status()
+    {
+        eprintln!("[sidecar] failed to send SIGTERM to pid {pid}: {e}");
+    }
+}
+
+#[cfg(not(unix))]
+fn send_sigterm(_pid: u32) {}
