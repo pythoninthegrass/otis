@@ -103,9 +103,9 @@ const WINDOW_BACKGROUND: [number, number, number] = [0x1a, 0x1a, 0x1a]
 
 /**
  * The window is created with `visible: false` (see tauri.conf.json) so the user never sees a blank/white
- * webview before React paints. Sets the native background on both the window and the webview, then shows —
- * mirrors ~/git/mt's revealApp(). Waits two animation frames past mount() so the commit has actually painted;
- * createRoot's initial render isn't guaranteed synchronous.
+ * webview before React paints. Sets the native background on both the window and the webview, then shows.
+ * Waits two animation frames past mount() so the commit has actually painted; createRoot's initial render
+ * isn't guaranteed synchronous.
  */
 async function revealWindow() {
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
