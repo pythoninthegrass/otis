@@ -32,6 +32,7 @@
     "targets": ["dmg", "app", "deb", "appimage"],
     "externalBin": ["binaries/otis-runtime"],
     "icon": ["../resources/icon.png", "../resources/icon.icns"],
+    "createUpdaterArtifacts": true,
     "macOS": {
       "minimumSystemVersion": "10.15",
       "entitlements": "./Entitlements.plist",
@@ -41,6 +42,12 @@
       "deb": {
         "depends": ["libwebkit2gtk-4.1-0"]
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI1OTJDODI3RDgyQzU3OQpSV1I1eFlKOWdpeFpDNmp1SVl2T1RVNXhuN29wNGFpUGllZUhJdFVodU11c3ZwTkV5TURhMFphTQo=",
+      "endpoints": ["https://github.com/triangllabs/otis/releases/latest/download/latest.json"]
     }
   }
 }
