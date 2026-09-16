@@ -42,6 +42,8 @@ async function bootstrap() {
   }
   const { isTauri } = await import("@tauri-apps/api/core")
   if (isTauri()) {
+    const { initTitleBarDrag } = await import("../tauri/drag-region.js")
+    initTitleBarDrag()
     try {
       const { createSidecarApi } = await import("../tauri/bridge.js")
       const api = await createSidecarApi()
