@@ -75,26 +75,33 @@ export async function loadLocalSettings(options: SettingsFileOptions = {}): Prom
   const env = options.env ?? process.env
   const saved = await readSettingsFile(options)
   const envFireworksApiKey = clean(env.FIREWORKS_API_KEY)
+  const envLocalAiModel = clean(env.LOCAL_AI_MODEL)
+  const modelOverridden = envLocalAiModel !== undefined && envLocalAiModel !== saved?.model
+  const model = envLocalAiModel ?? saved?.model
   const fastServingModels = saved ? migratedFastServingModels(saved) : []
   const pairEndpoints = saved?.pairEndpoints
-  const modelProvider = saved?.modelProvider ?? inferModelProvider(saved?.model)
+  const modelProvider = modelOverridden
+    ? inferModelProvider(model)
+    : (saved?.modelProvider ?? inferModelProvider(model))
 
   return {
     fireworksApiKey: envFireworksApiKey ?? saved?.fireworksApiKey,
     ...(pairEndpoints && hasPairEndpoints(pairEndpoints) ? { pairEndpoints } : {}),
     ...(saved?.pairEngine ? { pairEngine: saved.pairEngine } : {}),
-    model: saved?.model,
-    modelDisplayName: saved?.modelDisplayName,
-    modelContextLength: saved?.modelContextLength,
+    model,
+    modelDisplayName: modelOverridden ? model : saved?.modelDisplayName,
+    modelContextLength: modelOverridden ? undefined : saved?.modelContextLength,
     ...(modelProvider ? { modelProvider } : {}),
-    ...(saved?.modelSupportsImageInput !== undefined ? { modelSupportsImageInput: saved.modelSupportsImageInput } : {}),
+    ...(!modelOverridden && saved?.modelSupportsImageInput !== undefined
+      ? { modelSupportsImageInput: saved.modelSupportsImageInput }
+      : {}),
     ...(saved?.theme ? { theme: saved.theme } : {}),
     ...(saved?.language ? { language: saved.language } : {}),
     ...(saved?.lastWorkspace ? { lastWorkspace: saved.lastWorkspace } : {}),
     ...(saved?.thinkingVisible !== undefined ? { thinkingVisible: saved.thinkingVisible } : {}),
     ...(saved?.subagentPanelVisible !== undefined ? { subagentPanelVisible: saved.subagentPanelVisible } : {}),
     ...(fastServingModels.length > 0 ? { fastServingModels } : {}),
-    ...(saved?.modelFastId ? { modelFastId: saved.modelFastId } : {}),
+    ...(!modelOverridden && saved?.modelFastId ? { modelFastId: saved.modelFastId } : {}),
     ...(saved?.permissions ? { permissions: saved.permissions } : {}),
   }
 }

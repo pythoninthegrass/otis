@@ -1,7 +1,17 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
   "files": {
-    "includes": ["**", "!node_modules", "!.git", "!bun.lock", "!coverage", "!dist", "!out", "!resources/Otis.icon"]
+    "includes": [
+      "**",
+      "!node_modules",
+      "!.git",
+      "!bun.lock",
+      "!coverage",
+      "!dist",
+      "!out",
+      "!resources/Otis.icon",
+      "!src-tauri"
+    ]
   },
   "formatter": {
     "enabled": true,

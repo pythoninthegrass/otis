@@ -120,6 +120,23 @@ describe("local settings", () => {
     })
   })
 
+  it("uses LOCAL_AI_MODEL to override the saved model", async () => {
+    const file = join(await tempDirectory(), "config.json")
+    await saveFireworksSetup("fw_test_key", model("tool-model", "Tool Model", 131_072), { file })
+
+    await expect(loadLocalSettings({ file, env: { LOCAL_AI_MODEL: " openai/gpt-oss-20b " } })).resolves.toEqual({
+      fireworksApiKey: "fw_test_key",
+      model: "openai/gpt-oss-20b",
+      modelDisplayName: "openai/gpt-oss-20b",
+      modelProvider: "local",
+    })
+    expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({
+      model: "accounts/fireworks/models/tool-model",
+      modelDisplayName: "Tool Model",
+      modelContextLength: 131_072,
+    })
+  })
+
   it("changes the selected model without replacing a saved key", async () => {
     const file = join(await tempDirectory(), "config.json")
     await saveFireworksSetup("fw_test_key", model("old", "Old", 32_768), { file })

@@ -9,21 +9,13 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
     "types": ["node"]
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.d.ts",
-    "tests/**/*.ts",
-    "vitest.config.ts",
-    "electron.vite.config.ts",
-    "vite.config.ts"
-  ],
-  "exclude": [
-    "src/desktop/renderer",
-    "src/desktop/tauri",
-    "tests/desktop/tauri",
-    "src/desktop/sidecar",
-    "tests/desktop/sidecar"
+    "src/desktop/sidecar/**/*.ts",
+    "src/desktop/sidecar/**/*.d.ts",
+    "tests/desktop/sidecar/**/*.ts",
+    "src/text-modules.d.ts"
   ]
 }

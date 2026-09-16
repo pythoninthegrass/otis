@@ -1,0 +1,30 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-show",
+    "core:window:allow-set-background-color",
+    "core:webview:allow-set-webview-background-color",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-set-theme",
+    "core:webview:default",
+    "core:app:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "opener:default",
+    "updater:default",
+    "process:default",
+    "mcp-bridge:default",
+    "websocket:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [{ "name": "binaries/otis-runtime", "sidecar": true }]
+    }
+  ]
+}

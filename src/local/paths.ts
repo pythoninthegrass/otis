@@ -33,6 +33,11 @@ export function llamaRuntimeDirectory() {
   return join(localDataDirectory(), "llama")
 }
 
+/** Where the Tauri sidecar writes bridge.json: the port and auth token the renderer needs to connect. */
+export function sidecarRuntimeDirectory() {
+  return join(localDataDirectory(), "sidecar")
+}
+
 export function llamaBinaryDirectory(releaseTag: string) {
   return join(llamaRuntimeDirectory(), "bin", releaseTag)
 }

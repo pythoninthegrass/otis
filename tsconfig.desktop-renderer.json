@@ -17,8 +17,10 @@
   "include": [
     "src/desktop/renderer",
     "src/desktop/contracts.ts",
+    "src/desktop/tauri",
     "src/text-modules.d.ts",
     "tests/desktop/renderer/**/*.tsx",
-    "tests/desktop/ui/**/*.tsx"
+    "tests/desktop/ui/**/*.tsx",
+    "tests/desktop/tauri/**/*.ts"
   ]
 }
