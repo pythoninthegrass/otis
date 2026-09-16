@@ -38,6 +38,19 @@ async function bootstrap() {
   if (demoRequested && (import.meta.env.DEV || import.meta.env.MODE === "demo")) {
     const { createDemoRuntime } = await import("./demo/demo-runtime.js")
     mount(holdBootScreen(createDemoRuntime(window.otis)))
+    return
+  }
+  const { isTauri } = await import("@tauri-apps/api/core")
+  if (isTauri()) {
+    try {
+      const { createSidecarApi } = await import("../tauri/bridge.js")
+      const api = await createSidecarApi()
+      mount(api)
+      void setupTray(api)
+    } catch (error) {
+      console.error("Failed to connect to the desktop bridge:", error)
+      root.render(<BridgeMissing />)
+    }
   } else if (window.otis) {
     mount(window.otis)
   } else {
@@ -60,6 +73,27 @@ function holdBootScreen(api: DesktopApi): DesktopApi {
     return getSnapshot()
   }
   return api
+}
+
+/** Wires the macOS status bar item off the same event stream the window renders from; a no-op off macOS. */
+async function setupTray(api: DesktopApi) {
+  const [{ createTauriTray }, { getCurrentWindow }] = await Promise.all([
+    import("../tauri/tray.js"),
+    import("@tauri-apps/api/window"),
+  ])
+  const tray = await createTauriTray({
+    iconDir: "resources/tray",
+    actions: {
+      focusWindow: () => void getCurrentWindow().setFocus(),
+      startNewSession: () => void api.startNewSession(),
+      stop: () => void api.stop(),
+      installUpdate: () => void api.installUpdate(),
+    },
+  })
+  if (!tray) return
+  api.subscribe((event) => {
+    if (event.type === "status") tray.update(event.status)
+  })
 }
 
 function mount(api: DesktopApi) {

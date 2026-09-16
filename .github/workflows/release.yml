@@ -167,3 +167,140 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: dist/desktop
         run: gh release upload "v$VERSION" ./*.AppImage ./*.deb ./latest-linux.yml ./latest-linux-arm64.yml --clobber --repo "$GITHUB_REPOSITORY"
+
+  # Tauri desktop shell, built alongside the Electron `desktop` job while parity is proven.
+  # The Electron job stays authoritative until it is deleted in a follow-up pass; do not remove it here.
+  #
+  # macOS only for now, matching the Electron job's own current priority (no Windows target exists
+  # for either shell). Linux/Windows Tauri builds are deferred to a later pass.
+  desktop-tauri-macos:
+    name: Desktop Tauri (macOS)
+    runs-on: macos-latest
+    needs: release
+    env:
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The release tag itself: desktop artifacts always build from exactly what was released.
+          ref: refs/tags/v${{ inputs.version }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build Sidecar Binaries
+        run: bun run build:sidecar
+
+      # Signing secrets are optional for now (see Otis's own `desktop` job for the same pattern);
+      # an unsigned build still validates the packaging path.
+      - name: Import Apple Certificate
+        if: ${{ env.CSC_LINK != '' }}
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$CSC_LINK" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" ci_signing.keychain
+          security default-keychain -s ci_signing.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" ci_signing.keychain
+          security set-keychain-settings -t 3600 -u ci_signing.keychain
+          security list-keychains -d user -s ci_signing.keychain login.keychain
+          security import certificate.p12 -k ci_signing.keychain \
+            -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" ci_signing.keychain
+          security find-identity -v -p codesigning ci_signing.keychain
+          rm certificate.p12
+
+      - name: Decode App Store Connect API Key
+        if: ${{ env.APPLE_API_KEY_B64 != '' }}
+        env:
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+        run: echo "$APPLE_API_KEY_B64" | base64 --decode > /tmp/auth_key.p8
+
+      - name: Build (no bundle)
+        run: |
+          bunx tauri build --no-bundle --target aarch64-apple-darwin \
+            --config '{"build":{"beforeBuildCommand":""}}'
+        working-directory: src-tauri
+
+      - name: Bundle and Sign
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: bunx tauri bundle --target aarch64-apple-darwin
+        working-directory: src-tauri
+
+      # The step mt's authors added deliberately: fails in seconds instead of after a
+      # ~10-minute notarytool round trip, and catches what `--deep` alone misses — Tauri
+      # signs inside-out (sidecar, then the main binary, then the .app last), so the
+      # sidecar needs its own direct --verify rather than being assumed covered by the
+      # .app's --deep check.
+      - name: Verify Code Signatures
+        if: ${{ env.APPLE_SIGNING_IDENTITY != '' }}
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          app=$(ls -d src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app | head -n1)
+          sidecar="$app/Contents/MacOS/otis-runtime"
+          echo "resolved app bundle: $app"
+          if [ ! -f "$sidecar" ]; then
+            echo "error: sidecar not found at $sidecar" >&2
+            exit 1
+          fi
+
+          echo "verifying sidecar signature: $sidecar"
+          codesign --verify --strict --verbose=2 "$sidecar"
+
+          echo "verifying sidecar hardened runtime flag"
+          sidecar_display=$(codesign --display --verbose=4 "$sidecar" 2>&1)
+          if ! echo "$sidecar_display" | grep -q 'flags=0x[0-9a-fA-F]*(runtime)'; then
+            echo "error: sidecar is not signed with the hardened runtime flag" >&2
+            echo "--- codesign --display --verbose=4 output ---" >&2
+            echo "$sidecar_display" >&2
+            exit 1
+          fi
+
+          echo "verifying app bundle nested code signatures: $app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+
+      - name: Notarize
+        if: ${{ env.APPLE_API_KEY != '' }}
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          dmg=$(ls src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg | head -n1)
+          xcrun notarytool submit "$dmg" \
+            --key /tmp/auth_key.p8 \
+            --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
+          xcrun stapler staple "$dmg"
+
+      - name: Cleanup CI Keychain
+        if: always()
+        run: |
+          security default-keychain -s login.keychain-db || true
+          security delete-keychain ci_signing.keychain || true
+          rm -f /tmp/auth_key.p8
+
+      - name: Attach Artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg
+        run: gh release upload "v$VERSION" ./*.dmg --clobber --repo "$GITHUB_REPOSITORY"
+
+  # Linux/Windows Tauri builds: deferred to a later pass (see plan section 6/7). Add
+  # `desktop-tauri-linux`/`desktop-tauri-windows` jobs here once the macOS path is proven,
+  # reusing this job's build/bundle steps against ubuntu-latest / windows-latest runners.
