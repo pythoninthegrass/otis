@@ -47,9 +47,11 @@ async function bootstrap() {
       const api = await createSidecarApi()
       mount(api)
       void setupTray(api)
+      void revealWindow()
     } catch (error) {
       console.error("Failed to connect to the desktop bridge:", error)
       root.render(<BridgeMissing />)
+      void revealWindow()
     }
   } else if (window.otis) {
     mount(window.otis)
@@ -94,6 +96,31 @@ async function setupTray(api: DesktopApi) {
   api.subscribe((event) => {
     if (event.type === "status") tray.update(event.status)
   })
+}
+
+/** Matches tauri.conf.json's window "backgroundColor": "#1A1A1A". */
+const WINDOW_BACKGROUND: [number, number, number] = [0x1a, 0x1a, 0x1a]
+
+/**
+ * The window is created with `visible: false` (see tauri.conf.json) so the user never sees a blank/white
+ * webview before React paints. Sets the native background on both the window and the webview, then shows —
+ * mirrors ~/git/mt's revealApp(). Waits two animation frames past mount() so the commit has actually painted;
+ * createRoot's initial render isn't guaranteed synchronous.
+ */
+async function revealWindow() {
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  try {
+    const [{ getCurrentWindow }, { getCurrentWebview }] = await Promise.all([
+      import("@tauri-apps/api/window"),
+      import("@tauri-apps/api/webview"),
+    ])
+    const appWindow = getCurrentWindow()
+    await appWindow.setBackgroundColor(WINDOW_BACKGROUND)
+    await getCurrentWebview().setBackgroundColor(WINDOW_BACKGROUND)
+    await appWindow.show()
+  } catch (error) {
+    console.error("Failed to show the window:", error)
+  }
 }
 
 function mount(api: DesktopApi) {
